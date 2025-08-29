@@ -2,16 +2,16 @@ import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Set
 
 // Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
-	mySetting: string;
+interface ToDoPluginSettings {
+	ToDoSetting: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: ToDoPluginSettings = {
+	ToDoSetting: 'default'
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class ToDoPlugin extends Plugin {
+	settings: ToDoPluginSettings;
 
 	async onload() {
 		await this.loadSettings();
