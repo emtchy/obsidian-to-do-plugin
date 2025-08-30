@@ -7,8 +7,8 @@ import {
 	Notice,
 	Plugin,
 	PluginSettingTab,
-	Setting,
-	TAbstractFile, TFile
+	Setting, TAbstractFile,
+	TFile
 } from 'obsidian';
 
 const DONE_CELL = 4;
@@ -36,15 +36,20 @@ export default class ToDoPlugin extends Plugin {
 			const notePath = `Tasks/todo-${todayStr}.md`;
 			const prevStr = window.moment().subtract(7, "days").format("YYYY-MM-DD");
 			const prevNotePath = `Tasks/todo-${prevStr}.md`
-			const p = normalizePath(prevNotePath)
-			const fileContent = this.app.vault.getAbstractFileByPath(p);
+			const path = normalizePath(prevNotePath)
+			const fileContent = this.app.vault.getAbstractFileByPath(path);
 			let prevText = "";
+			//fs.renameSync(prevNotePath, "Tasks/Archive");
 			if (fileContent instanceof TFile) {
 				prevText = await this.app.vault.read(fileContent);
 			}
 			const newContent = parseMarkdownTable(prevText);
 			// TODO const fileContent
 			try {
+				const archiveNote = this.app.vault.getAbstractFileByPath(path);
+				if (archiveNote instanceof TAbstractFile) {
+					await this.app.fileManager.renameFile(archiveNote, normalizePath(`Tasks/Archive/todo-${prevStr}.md`));
+				}
 				await this.app.vault.create(notePath, newContent.join('\n'));
 				console.log('[SUCCESS] created new todo file');
 				new Notice('[SUCCESS] created new todo note!');
@@ -54,8 +59,7 @@ export default class ToDoPlugin extends Plugin {
 			}
 		});
 
-		// TODO: find better way to find X in Done cell
-		function parseMarkdownTable(markdown:string): string[] {
+		function parseMarkdownTable(markdown: string): string[] {
 			const rows = markdown.trim().split('\n');
 			let newTableContent = [];
 			for (let i = 0; i < rows.length; i++) {
@@ -73,7 +77,7 @@ export default class ToDoPlugin extends Plugin {
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+		statusBarItemEl.setText('ToDo Plugin active');
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
