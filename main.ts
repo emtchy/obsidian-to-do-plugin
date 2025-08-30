@@ -3,11 +3,11 @@ import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Set
 // Remember to rename these classes and interfaces!
 
 interface ToDoPluginSettings {
-	ToDoSetting: string;
+	ToDoSettings: string;
 }
 
 const DEFAULT_SETTINGS: ToDoPluginSettings = {
-	ToDoSetting: 'default'
+	ToDoSettings: 'default'
 }
 
 export default class ToDoPlugin extends Plugin {
@@ -17,12 +17,20 @@ export default class ToDoPlugin extends Plugin {
 		await this.loadSettings();
 
 		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
+		const ribbonIconEl = this.addRibbonIcon('sticky-note', 'Todo Plugin', async (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+			const today = window.moment().format("YYYY-MM-DD");
+			const filePath = `Tasks/todo-${today}.md`;
+			// const fileContent
+			try {
+				await this.app.vault.create(filePath, 'Hello!');
+				console.log('[SUCCESS] created new todo file');
+				new Notice('created new todo note!');
+			} catch (e) {
+				console.error('[FAIL] error creating file');
+				new Notice('error creating new todo!');
+			}
 		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
@@ -36,6 +44,7 @@ export default class ToDoPlugin extends Plugin {
 				new SampleModal(this.app).open();
 			}
 		});
+
 		// This adds an editor command that can perform some operation on the current editor instance
 		this.addCommand({
 			id: 'sample-editor-command',
@@ -108,9 +117,9 @@ class SampleModal extends Modal {
 }
 
 class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+	plugin: ToDoPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: ToDoPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -125,9 +134,9 @@ class SampleSettingTab extends PluginSettingTab {
 			.setDesc('It\'s a secret')
 			.addText(text => text
 				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setValue(this.plugin.settings.ToDoSettings)
 				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.ToDoSettings = value;
 					await this.plugin.saveSettings();
 				}));
 	}
