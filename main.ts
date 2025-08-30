@@ -1,4 +1,17 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import {
+	App,
+	Editor,
+	MarkdownView,
+	Modal,
+	normalizePath,
+	Notice,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+	TAbstractFile, TFile
+} from 'obsidian';
+
+const DONE_CELL = 4;
 
 // Remember to rename these classes and interfaces!
 
@@ -19,18 +32,44 @@ export default class ToDoPlugin extends Plugin {
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('sticky-note', 'Todo Plugin', async (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
-			const today = window.moment().format("YYYY-MM-DD");
-			const filePath = `Tasks/todo-${today}.md`;
-			// const fileContent
+			const todayStr = window.moment().format("YYYY-MM-DD");
+			const notePath = `Tasks/todo-${todayStr}.md`;
+			const prevStr = window.moment().subtract(7, "days").format("YYYY-MM-DD");
+			const prevNotePath = `Tasks/todo-${prevStr}.md`
+			const p = normalizePath(prevNotePath)
+			const fileContent = this.app.vault.getAbstractFileByPath(p);
+			let prevText = "";
+			if (fileContent instanceof TFile) {
+				prevText = await this.app.vault.read(fileContent);
+			}
+			const newContent = parseMarkdownTable(prevText);
+			// TODO const fileContent
 			try {
-				await this.app.vault.create(filePath, 'Hello!');
+				await this.app.vault.create(notePath, newContent.join('\n'));
 				console.log('[SUCCESS] created new todo file');
-				new Notice('created new todo note!');
+				new Notice('[SUCCESS] created new todo note!');
 			} catch (e) {
 				console.error('[FAIL] error creating file');
-				new Notice('error creating new todo!');
+				new Notice('[FAIL] Could not create new todo - File probably exists already!');
 			}
 		});
+
+		// TODO: find better way to find X in Done cell
+		function parseMarkdownTable(markdown:string): string[] {
+			const rows = markdown.trim().split('\n');
+			let newTableContent = [];
+			for (let i = 0; i < rows.length; i++) {
+				if (i == 0 || i == 1) {
+					newTableContent.push(rows[i]);
+					continue;
+				}
+				let content = rows[i].trim().split('|');
+				if (!content[DONE_CELL].includes('X')) {
+					newTableContent.push(rows[i]);
+				}
+			}
+			return newTableContent;
+		}
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
