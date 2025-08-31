@@ -7,14 +7,11 @@ import {
 	Notice,
 	Plugin,
 	PluginSettingTab,
-	Setting, TAbstractFile,
-	TFile
+	Setting, TFile
 } from 'obsidian';
 
 const DONE_CELL = 4;
 type GenerationMode = "daily" | "weekly" | "everyNDays" | "onClick";
-
-// Remember to rename these classes and interfaces!
 
 interface ToDoPluginSettings {
 	ToDoSettings: string;
@@ -100,7 +97,7 @@ export default class ToDoPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	private async moveFile(prevPath: string, newPath: string) : Promise<void> {
+	private async moveFile(prevPath: string, newPath: string): Promise<void> {
 		const note = this.app.vault.getAbstractFileByPath(normalizePath(prevPath));
 		if (note instanceof TFile) {
 			await this.app.fileManager.renameFile(note, normalizePath(newPath));
@@ -137,11 +134,12 @@ export default class ToDoPlugin extends Plugin {
 		return newTableContent;
 	}
 
-	private async updateTodos() : Promise<void> {
+	private async updateTodos(): Promise<void> {
 		try {
 			try {
 				await this.app.vault.createFolder('Tasks/Archive');
-			} catch (_) {}
+			} catch (_) {
+			}
 			const prevName = this.getPreviousNote(); // e.g., "todo-2025-08-24.md"
 			const todayPath = normalizePath(this.getTargetPath());
 			if (this.app.vault.getAbstractFileByPath(todayPath)) {
@@ -163,7 +161,8 @@ export default class ToDoPlugin extends Plugin {
 
 			console.log('[SUCCESS] created new todo file');
 			new Notice('[SUCCESS] created new todo note!');
-		} catch (e) {}
+		} catch (e) {
+		}
 	}
 
 	private getTargetNote(): string {
@@ -227,7 +226,6 @@ export default class ToDoPlugin extends Plugin {
 			case "onClick":
 				return m;
 		}
-		return m.startOf("isoWeek");
 	}
 }
 
@@ -235,7 +233,7 @@ class ToDoSetting extends PluginSettingTab {
 	plugin: ToDoPlugin;
 
 	display(): void {
-		const { containerEl } = this;
+		const {containerEl} = this;
 		containerEl.empty();
 
 		new Setting(containerEl)
