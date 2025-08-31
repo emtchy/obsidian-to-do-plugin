@@ -34,23 +34,16 @@ export default class ToDoPlugin extends Plugin {
 			// Called when the user clicks the icon.
 			const todayStr = window.moment().format("YYYY-MM-DD");
 			const notePath = `Tasks/todo-${todayStr}.md`;
+
 			const prevStr = window.moment().subtract(7, "days").format("YYYY-MM-DD");
 			const prevNotePath = `Tasks/todo-${prevStr}.md`
-			const path = normalizePath(prevNotePath)
-			const fileContent = this.app.vault.getAbstractFileByPath(path);
-			let prevText = "";
-			//fs.renameSync(prevNotePath, "Tasks/Archive");
-			if (fileContent instanceof TFile) {
-				prevText = await this.app.vault.read(fileContent);
-			}
-			const newContent = parseMarkdownTable(prevText);
-			// TODO const fileContent
+
 			try {
-				const archiveNote = this.app.vault.getAbstractFileByPath(path);
-				if (archiveNote instanceof TAbstractFile) {
-					await this.app.fileManager.renameFile(archiveNote, normalizePath(`Tasks/Archive/todo-${prevStr}.md`));
-				}
-				await this.app.vault.create(notePath, newContent.join('\n'));
+				try {
+					await this.app.vault.createFolder('Tasks/Archive');
+				} catch (_) {}
+				await this.createNewToDo(prevNotePath, notePath);
+				await this.moveFile(prevNotePath, `Tasks/Archive/todo-${prevStr}.md`);
 				console.log('[SUCCESS] created new todo file');
 				new Notice('[SUCCESS] created new todo note!');
 			} catch (e) {
@@ -59,34 +52,15 @@ export default class ToDoPlugin extends Plugin {
 			}
 		});
 
-		function parseMarkdownTable(markdown: string): string[] {
-			const rows = markdown.trim().split('\n');
-			let newTableContent = [];
-			for (let i = 0; i < rows.length; i++) {
-				if (i == 0 || i == 1) {
-					newTableContent.push(rows[i]);
-					continue;
-				}
-				let content = rows[i].trim().split('|');
-				if (!content[DONE_CELL].includes('X')) {
-					newTableContent.push(rows[i]);
-				}
-			}
-			return newTableContent;
+		function hasCurrentTodo(app: App, filenamePattern = "todo-YYYY-MM-DD.md"): boolean {
+			const name = window.moment().format(filenamePattern);
+			const p = `Tasks/${name}.md`;
+			return !!app.vault.getAbstractFileByPath(p);
 		}
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.setText('ToDo Plugin active');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
 
 		// This adds an editor command that can perform some operation on the current editor instance
 		this.addCommand({
@@ -140,6 +114,43 @@ export default class ToDoPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+
+	private async moveFile(prevPath: string, newPath: string) : Promise<void> {
+		const note = this.app.vault.getAbstractFileByPath(normalizePath(prevPath));
+		if (note instanceof TFile) {
+			await this.app.fileManager.renameFile(note, normalizePath(newPath));
+		} else {
+			throw new Error(`Not a file: ${prevPath}`);
+		}
+	}
+
+	private async createNewToDo(prevNote: string, newNote: string): Promise<void> {
+		const prevFile = this.app.vault.getAbstractFileByPath(normalizePath(prevNote));
+		let prevText = "";
+		if (prevFile instanceof TFile) {
+			prevText = await this.app.vault.read(prevFile);
+			const newContent = await this.parseMarkdownTable(prevText);
+			await this.app.vault.create(newNote, newContent.join('\n'));
+			return;
+		}
+		await this.app.vault.create(newNote, '');
+	}
+
+	private async parseMarkdownTable(markdown: string): Promise<string[]> {
+		const rows = markdown.trim().split('\n');
+		let newTableContent = [];
+		for (let i = 0; i < rows.length; i++) {
+			if (i == 0 || i == 1) {
+				newTableContent.push(rows[i]);
+				continue;
+			}
+			let content = rows[i].trim().split('|');
+			if (!content[DONE_CELL].includes('X')) {
+				newTableContent.push(rows[i]);
+			}
+		}
+		return newTableContent;
 	}
 }
 
