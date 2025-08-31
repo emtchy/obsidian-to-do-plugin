@@ -12,7 +12,7 @@ import {
 } from 'obsidian';
 
 const DONE_CELL = 4;
-type GenerationMode = "daily" | "weekly" | "everyNDays";
+type GenerationMode = "daily" | "weekly" | "everyNDays" | "onClick";
 
 // Remember to rename these classes and interfaces!
 
@@ -32,41 +32,64 @@ const DEFAULT_SETTINGS: ToDoPluginSettings = {
 
 export default class ToDoPlugin extends Plugin {
 	settings: ToDoPluginSettings;
+	private ribbonEl: HTMLElement | null = null;
+	private heartbeatId: number | null = null;
 
 	async onload() {
 		await this.loadSettings();
-
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('sticky-note', 'Todo Plugin', async (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			await this.updateTodos();
-		});
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('ToDo Plugin active');
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
-		this.app.workspace.onLayoutReady(() => {
-			this.rollIfNeeded(false).catch(console.error);
-		});
-		this.registerInterval(
-			window.setInterval(() => this.rollIfNeeded(false), 60 * 60 * 1000)
-		);
+		this.addSettingTab(new ToDoSetting(this.app, this));
+		this.installTriggers();
 	}
 
 	onunload() {
+		this.uninstallTriggers();
+	}
 
+	public installTriggers() {
+		this.uninstallTriggers();
+
+		if (this.settings.generationMode === "onClick") {
+			this.ribbonEl = this.addRibbonIcon("sticky-note", "Todo Plugin", async () => {
+				await this.updateTodos();
+			});
+			return;
+		}
+
+		this.app.workspace.onLayoutReady(() => {
+			const run = () => this.rollIfNeeded(false).catch(console.error);
+
+			let fired = false;
+			this.registerEvent(this.app.metadataCache.on("resolved", () => {
+				if (fired) return;
+				fired = true;
+				run();
+			}));
+
+			window.setTimeout(() => {
+				if (fired) return;
+				const hasIndex = this.app.vault.getMarkdownFiles().length > 0;
+				if (hasIndex) {
+					fired = true;
+					run();
+				}
+			}, 300);
+		});
+
+		this.heartbeatId = window.setInterval(() => this.rollIfNeeded(false), 60 * 60 * 1000);
+	}
+
+	private uninstallTriggers() {
+		if (this.ribbonEl) {
+			this.ribbonEl.remove();
+			this.ribbonEl = null;
+		}
+		if (this.heartbeatId) {
+			try {
+				window.clearInterval(this.heartbeatId);
+			} catch {
+			}
+			this.heartbeatId = null;
+		}
 	}
 
 	async loadSettings() {
@@ -81,8 +104,6 @@ export default class ToDoPlugin extends Plugin {
 		const note = this.app.vault.getAbstractFileByPath(normalizePath(prevPath));
 		if (note instanceof TFile) {
 			await this.app.fileManager.renameFile(note, normalizePath(newPath));
-		} else {
-			throw new Error(`Not a file: ${prevPath}`);
 		}
 	}
 
@@ -93,6 +114,7 @@ export default class ToDoPlugin extends Plugin {
 		if (prevFile instanceof TFile) {
 			prevText = await this.app.vault.read(prevFile);
 			const newContent = await this.parseMarkdownTable(prevText);
+			console.log("NEW CONTENT: ", newContent);
 			await this.app.vault.create(newNote, newContent.join('\n'));
 			return;
 		}
@@ -113,11 +135,6 @@ export default class ToDoPlugin extends Plugin {
 			}
 		}
 		return newTableContent;
-	}
-	private hasCurrentTodo(filenamePattern = "todo-YYYY-MM-DD.md"): boolean {
-		const name = window.moment().format(filenamePattern);
-		const p = `Tasks/${name}.md`;
-		return !!this.app.vault.getAbstractFileByPath(p);
 	}
 
 	private async updateTodos() : Promise<void> {
@@ -196,9 +213,9 @@ export default class ToDoPlugin extends Plugin {
 		const m = window.moment();
 		switch (this.settings.generationMode) {
 			case "daily":
-				return m; // today
+				return m;
 			case "weekly":
-				return m.startOf("isoWeek"); // Monday
+				return m.startOf("isoWeek");
 			case "everyNDays": {
 				const n = Math.max(1, Math.floor(this.settings.nDays || 1));
 				const anchor = window.moment(this.settings.anchorISODate, "YYYY-MM-DD", true);
@@ -207,54 +224,59 @@ export default class ToDoPlugin extends Plugin {
 				const bucketIdx = Math.floor(diffDays / n);
 				return base.clone().add(bucketIdx * n, "days");
 			}
+			case "onClick":
+				return m;
 		}
+		return m.startOf("isoWeek");
 	}
 }
-class SampleSettingTab extends PluginSettingTab {
+
+class ToDoSetting extends PluginSettingTab {
 	plugin: ToDoPlugin;
 
-	constructor(app: App, plugin: ToDoPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
 	display(): void {
-		const {containerEl} = this;
-
+		const { containerEl } = this;
 		containerEl.empty();
 
 		new Setting(containerEl)
 			.setName("Generation interval")
 			.setDesc("When should a new todo be generated?")
 			.addDropdown(dd => dd
-				.addOptions({daily: "Daily", weekly: "Weekly (Monday)", everyNDays: "Every N days"})
+				.addOptions({
+					daily: "Daily",
+					weekly: "Weekly (Monday)",
+					everyNDays: "Every N days",
+					onClick: "On click",
+				})
 				.setValue(this.plugin.settings.generationMode)
 				.onChange(async (v: GenerationMode) => {
 					this.plugin.settings.generationMode = v;
 					await this.plugin.saveSettings();
+					this.plugin.installTriggers();
 				})
 			);
+
 		new Setting(containerEl)
-			.setName('N (days)')
+			.setName("N (days)")
 			.setDesc('Used only when mode = "Every N days".')
 			.addText(t => t
-				.setPlaceholder('e.g. 7')
+				.setPlaceholder("e.g. 7")
 				.setValue(String(this.plugin.settings.nDays))
 				.onChange(async (val) => {
-					const n = Math.max(1, parseInt(val || '1', 10) || 1);
+					const n = Math.max(1, parseInt(val || "1", 10) || 1);
 					this.plugin.settings.nDays = n;
 					await this.plugin.saveSettings();
 				})
 			);
 
 		new Setting(containerEl)
-			.setName('Anchor date')
+			.setName("Anchor date")
 			.setDesc('YYYY-MM-DD. Buckets are counted from here for "Every N days".')
 			.addText(t => t
-				.setPlaceholder('2024-01-01')
+				.setPlaceholder("2024-01-01")
 				.setValue(this.plugin.settings.anchorISODate)
 				.onChange(async (val) => {
-					this.plugin.settings.anchorISODate = val || '2024-01-01';
+					this.plugin.settings.anchorISODate = val || "2024-01-01";
 					await this.plugin.saveSettings();
 				})
 			);
