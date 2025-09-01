@@ -1,9 +1,9 @@
 {
 	"id": "todo-plugin",
 	"name": "ToDo Plugin",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "Creates new ToDo note every week and adds undone ToDos from the previous week.",
+	"description": "Creates new todo note based on personal preferences and adds undone todos from the previous todo note.",
 	"author": "Emily Gombocz",
 	"authorUrl": "",
 	"fundingUrl": "",

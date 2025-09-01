@@ -10,8 +10,11 @@ import {
 	Setting, TFile
 } from 'obsidian';
 
-const DONE_CELL = 4;
+const DONE_MARK = 'x';
+const DONE = 4;
+const CONTENT_START = 2;
 type GenerationMode = "daily" | "weekly" | "everyNDays" | "onClick";
+const HEADLINE = "|Subject|Task|Due|Done|\n|-|-|-|-|";
 
 interface ToDoPluginSettings {
 	ToDoSettings: string;
@@ -24,7 +27,7 @@ const DEFAULT_SETTINGS: ToDoPluginSettings = {
 	ToDoSettings: "default",
 	generationMode: "weekly",
 	nDays: 7,
-	anchorISODate: "2024-01-01"
+	anchorISODate: "2025-01-01"
 }
 
 export default class ToDoPlugin extends Plugin {
@@ -106,28 +109,21 @@ export default class ToDoPlugin extends Plugin {
 
 	private async createNewToDo(prevNote: string, newNote: string): Promise<void> {
 		const prevFile = this.app.vault.getAbstractFileByPath(prevNote);
-		console.log("PREV FILE: ", prevFile);
-		let prevText = "";
 		if (prevFile instanceof TFile) {
-			prevText = await this.app.vault.read(prevFile);
-			const newContent = await this.parseMarkdownTable(prevText);
-			console.log("NEW CONTENT: ", newContent);
+			let oldContent = await this.app.vault.read(prevFile);
+			const newContent = await this.parseMarkdownTable(oldContent);
 			await this.app.vault.create(newNote, newContent.join('\n'));
 			return;
 		}
-		await this.app.vault.create(newNote, prevText);
+		await this.app.vault.create(newNote, HEADLINE);
 	}
 
 	private async parseMarkdownTable(markdown: string): Promise<string[]> {
 		const rows = markdown.trim().split('\n');
-		let newTableContent = [];
-		for (let i = 0; i < rows.length; i++) {
-			if (i == 0 || i == 1) {
-				newTableContent.push(rows[i]);
-				continue;
-			}
+		let newTableContent = [HEADLINE];
+		for (let i = CONTENT_START; i < rows.length; i++) {
 			let content = rows[i].trim().split('|');
-			if (!content[DONE_CELL].includes('X')) {
+			if (!content[DONE].toLowerCase().includes(DONE_MARK)) {
 				newTableContent.push(rows[i]);
 			}
 		}
@@ -148,7 +144,7 @@ export default class ToDoPlugin extends Plugin {
 			}
 
 			if (!prevName) {
-				await this.app.vault.create(todayPath, '');
+				await this.app.vault.create(todayPath, HEADLINE);
 				new Notice('[SUCCESS] created new (empty) todo note!');
 				return;
 			}
